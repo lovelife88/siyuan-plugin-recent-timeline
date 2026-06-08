@@ -1,84 +1,84 @@
-# 最近更新时间线
+# Recent Timeline
 
-思源笔记插件 — 以时间线形式展示最近更新的文档，支持快速跳转与界面样式自定义。
+A SiYuan Note plugin that displays recently updated documents in a timeline view, with quick navigation and customizable appearance.
 
-## 功能
+## Features
 
-### 时间线展示
-- 📋 **时间线视图**：按日期分组展示最近更新的文档
-- 🔄 **滚动自动加载**：滚动到底部自动加载更多历史记录
-- 👆 **内容跳转**：点击文档标题或更新内容段落，直接跳转到对应块
-- 📍 **路径显示**：显示文档所属笔记本及完整层级路径
-- ⏱ **友好时间**：展示相对时间（如"3小时前"）
-- 🎨 **Dock 面板**：顶栏图标 + 右侧 Dock，一键打开/关闭
-- 🌓 **主题适配**：自动跟随思源笔记明暗主题
+### Timeline Display
+- 📋 **Timeline View**: Documents grouped by date in a vertical timeline
+- 🔄 **Infinite Scroll**: Auto-loads more history when scrolling to the bottom
+- 👆 **Jump to Block**: Click any document title or updated content to jump directly to the corresponding block
+- 📍 **Path Display**: Shows the notebook name and full document hierarchy
+- ⏱ **Friendly Time**: Relative timestamps (e.g., "3 hours ago")
+- 🎨 **Dock Panel**: Top bar icon + right-side dock for easy access
+- 🌓 **Theme Adaptive**: Automatically follows SiYuan's light/dark themes
 
-### 设置面板 —「功能」页签
-- 🔀 **卡片内容排序**：支持「按更新时间排序」和「按文档顺序排序」
-- 🚫 **忽略内容**：配置需要忽略的内容文本（如空白行等），匹配的内容不会在卡片中显示
-- ✂️ **内容截断**：限制每条更新最多显示的行数，超长内容自动截断（鼠标悬停可查看完整）
-- 🚀 **跳转方式**：
-  - **openTab（快速跳转）**：毫秒级，支持「跳转聚焦」配置
-  - **思源链接（系统跳转）**：使用 `siyuan://` 协议，与思源原生块引用行为一致
-- 🔍 **跳转聚焦**（仅 openTab 方式）：开启后跳转时聚焦到目标块（文档视图仅显示该块及其子级），关闭则以完整文档视图打开
+### Settings — "General" Tab
+- 🔀 **Content Sort Order**: Choose between "By Update Time" or "By Document Order"
+- 🚫 **Ignore Content**: Configure text to exclude from cards (one rule per line)
+- ✂️ **Content Truncation**: Limit visible lines per content item; hover to see full content
+- 🚀 **Jump Method**:
+  - **openTab (Fast Jump)**: Millisecond-level, supports zoom-in control
+  - **SiYuan Link (System Jump)**: Uses `siyuan://` protocol, behaves like native block references
+- 🔍 **Zoom In** (openTab only): Focus on the target block when jumping; off = full document view
 
-### 设置面板 —「样式」页签
-支持对界面主要元素进行可视化样式配置，**实时预览**，所见即所得。
+### Settings — "Style" Tab
+Visual style configuration for all major UI elements with **live preview**.
 
-| 分组 | 可配置项 | 控件 |
-|------|---------|------|
-| **卡片标题** | 字号、字重、颜色、行高、装饰条宽度、装饰条颜色 | 滑块、下拉、取色器 |
-| **卡片内容** | 字号、颜色、行高 | 滑块、取色器 |
-| **日期时间** | 日期字号/颜色、时间字号/颜色 | 滑块、取色器 |
-| **时间轴** | 圆点大小、连线宽度 | 滑块 |
-| **卡片** | 圆角大小、内边距 | 滑块 |
-| **路径信息** | 字号、颜色 | 滑块、取色器 |
+| Group | Configurable Properties | Controls |
+|-------|------------------------|----------|
+| **Card Title** | Font size, weight, color, line height, bar width, bar color | Slider, dropdown, color picker |
+| **Card Content** | Font size, color, line height | Slider, color picker |
+| **Date & Time** | Date font size/color, time font size/color | Slider, color picker |
+| **Timeline Axis** | Dot size, line width | Slider |
+| **Card** | Border radius, padding | Slider |
+| **Path Info** | Font size, color | Slider, color picker |
 
-#### 样式导入 / 导出
-- 📤 **导出**：点击「导出样式」将当前样式配置复制到剪贴板（JSON 格式），方便分享或备份
-- 📥 **导入**：点击「导入样式」，粘贴 JSON 配置即可一键应用
+#### Style Import / Export
+- 📤 **Export**: Click "Export" to copy the current style config as JSON to your clipboard
+- 📥 **Import**: Click "Import", paste a JSON style config, and apply in one click
 
-所有颜色选项支持「跟随主题」模式，切换思源主题时自动适配。
+All color options support a "Follow Theme" mode — colors automatically adapt when you switch SiYuan themes.
 
-## 安装
+## Installation
 
-### 生产构建
-将 `dist/` 目录下的所有文件复制到 `<思源工作空间>/data/plugins/recent-timeline/`，然后在思源设置 → 集市 → 已下载中启用。
+### Production
+Copy the contents of `dist/` to `<workspace>/data/plugins/recent-timeline/`, then enable it in SiYuan Settings → Marketplace → Downloaded.
 
-或使用 Release 提供的 `dist.zip` 包直接解压。
+Or extract the `dist.zip` from the latest Release directly.
 
-### 开发模式
+### Development
 ```bash
-# 安装依赖
+# Install dependencies
 pnpm install
 
-# 开发编译（watch 模式）
+# Watch mode
 pnpm run dev
 
-# 在思源工作空间创建符号链接
-# Windows: mklink /D "<思源工作空间>/data/plugins/recent-timeline" "<项目路径>/dist"
-# macOS/Linux: ln -s "<项目路径>/dist" "<思源工作空间>/data/plugins/recent-timeline"
+# Create symlink in your SiYuan workspace
+# Windows: mklink /D "<workspace>/data/plugins/recent-timeline" "<project>/dist"
+# macOS/Linux: ln -s "<project>/dist" "<workspace>/data/plugins/recent-timeline"
 ```
 
-### 生产构建
+### Build
 ```bash
 pnpm run build
 ```
 
-## 目录结构
+## Project Structure
 
 ```
 siyuan-plugin-recent-timeline/
 ├── src/
-│   ├── index.ts        # 插件入口，继承 Plugin 类
-│   ├── api.ts          # 思源内核 API 封装（SQL 查询、内容获取）
-│   ├── timeline.ts     # 时间线面板组件（核心逻辑 + 设置面板）
-│   ├── index.scss      # 全部样式（CSS 变量驱动）
-│   └── i18n/           # 国际化
+│   ├── index.ts        # Plugin entry, extends Plugin class
+│   ├── api.ts          # SiYuan kernel API wrapper (SQL, content fetch)
+│   ├── timeline.ts     # Timeline panel component (core logic + settings UI)
+│   ├── index.scss      # All styles (CSS variable driven)
+│   └── i18n/           # Internationalization
 │       ├── zh_CN.json
 │       └── en_US.json
-├── dist/               # 构建产物
-├── plugin.json         # 插件配置
+├── dist/               # Build output
+├── plugin.json         # Plugin manifest
 ├── package.json
 ├── webpack.config.cjs
 ├── tsconfig.json
@@ -86,21 +86,21 @@ siyuan-plugin-recent-timeline/
 └── README_zh_CN.md
 ```
 
-## 技术说明
+## Technical Notes
 
-### 架构
-- **插件入口** (`index.ts`)：注册 Dock 面板、加载/保存设置
-- **面板组件** (`timeline.ts`)：渲染时间线列表、处理交互、管理设置弹窗
-- **API 层** (`api.ts`)：封装思源内核 SQL 查询、内容获取、Markdown 渲染
+### Architecture
+- **Entry** (`index.ts`): Registers dock panel, loads/saves plugin settings
+- **Panel** (`timeline.ts`): Renders timeline list, handles interactions, manages settings dialog
+- **API** (`api.ts`): SiYuan kernel API queries, content fetching, Markdown rendering
 
-### 跳转方式
-- **openTab**：使用思源插件 API 的 `openTab` 方法，毫秒级跳转，支持 `zoomIn` 聚焦控制
-- **思源链接**：使用 `window.open('siyuan://blocks/${id}')` 原生协议跳转，行为与思源块引用一致
+### Jump Methods
+- **openTab**: Uses the `openTab` plugin API — millisecond speed, supports `zoomIn` focus control
+- **SiYuan Link**: Uses `window.open('siyuan://blocks/${id}')` — native protocol behavior, same as SiYuan block references
 
-### 样式体系
-- 使用 CSS 变量（`--tl-*`）驱动全部组件样式
-- 默认值跟随思源主题 CSS 变量（`--b3-theme-*`），自动适配明暗主题
-- 设置面板中的样式修改实时更新 CSS 变量，无需重新加载
+### Style System
+- All component styles are driven by CSS custom properties (`--tl-*`)
+- Defaults reference SiYuan theme variables (`--b3-theme-*`), automatically adapting to light/dark themes
+- Style changes in the settings panel update CSS variables in real time without reload
 
-### 国际化
-支持中文（zh_CN）和英文（en_US），由 `src/i18n/` 下的 JSON 文件管理。
+### Internationalization
+Supports Chinese (`zh_CN`) and English (`en_US`), managed via JSON files in `src/i18n/`.
