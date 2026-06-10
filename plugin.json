@@ -2,7 +2,7 @@
   "name": "siyuan-plugin-recent-timeline",
   "author": "lovelife88",
   "url": "https://github.com/lovelife88/siyuan-plugin-recent-timeline",
-  "version": "0.1.0",
+  "version": "1.0.3",
   "minAppVersion": "2.10.3",
   "backends": ["windows", "linux", "darwin"],
   "frontends": ["desktop"],

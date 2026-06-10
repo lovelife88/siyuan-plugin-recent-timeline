@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist.zip
+package.zip
+recent-timeline.zip
+*.log
+.DS_Store
+Thumbs.db
