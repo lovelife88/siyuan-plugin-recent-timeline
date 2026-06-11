@@ -1,6 +1,6 @@
 {
   "name": "siyuan-plugin-recent-timeline",
-  "version": "1.0.4",
+  "version": "1.0.3",
   "type": "module",
   "description": "SiYuan plugin - Display recently updated documents in a timeline view",
   "author": "lovelife88",

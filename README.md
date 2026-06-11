@@ -12,7 +12,6 @@ A SiYuan Note plugin that displays recently updated documents in a timeline view
 - ⏱ **Friendly Time**: Relative timestamps (e.g., "3 hours ago")
 - 🎨 **Dock Panel**: Top bar icon + right-side dock for easy access
 - 🌓 **Theme Adaptive**: Automatically follows SiYuan's light/dark themes
-- 🔄 **Auto Refresh**: Real-time refresh via WebSocket (debounced 2s)
 
 ### Settings — "General" Tab
 - 🔀 **Content Sort Order**: Choose between "By Update Time" or "By Document Order"
