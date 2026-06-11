@@ -66,17 +66,19 @@ export default class RecentTimelinePlugin extends Plugin {
     const DEBOUNCE_MS = 2000;
 
     this.eventBus.on("ws-main", (event: any) => {
-      // event 结构: { cmd: string, ... }
-      const cmd = event?.cmd;
+      // event 是 CustomEvent，数据在 event.detail 中
+      const cmd = event?.detail?.cmd;
       const validCmds = ["saved", "updated", "removed", "moved", "transaction"];
 
       // 只有当事件与文档变更相关时才触发刷新
       if (cmd && validCmds.includes(cmd)) {
+        console.log("[Timeline] ws-main event, cmd:", cmd);
         if (debounceTimer) {
           clearTimeout(debounceTimer);
         }
         debounceTimer = setTimeout(() => {
           if (this.timelinePanel) {
+            console.log("[Timeline] auto-refreshing...");
             this.timelinePanel.loadData();
           }
         }, DEBOUNCE_MS);
