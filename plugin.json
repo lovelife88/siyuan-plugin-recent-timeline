@@ -1,0 +1,38 @@
+{
+  "name": "siyuan-plugin-recent-timeline",
+  "author": "lovelife88",
+  "url": "https://github.com/lovelife88/siyuan-plugin-recent-timeline",
+  "version": "1.0.4",
+  "minAppVersion": "2.10.3",
+  "backends": ["windows", "linux", "darwin"],
+  "frontends": ["desktop"],
+  "displayName": {
+    "default": "Recent Timeline",
+    "zh_CN": "最近更新时间线",
+    "en_US": "Recent Timeline"
+  },
+  "description": {
+    "default": "Display recently updated documents in a timeline, click to navigate",
+    "zh_CN": "以时间线形式展示最近更新的文档，点击可快速跳转",
+    "en_US": "Display recently updated documents in a timeline, click to navigate"
+  },
+  "readme": {
+    "default": "README.md",
+    "zh_CN": "README_zh_CN.md",
+    "en_US": "README.md"
+  },
+  "i18n": [
+    "zh_CN",
+    "en_US"
+  ],
+  "funding": {
+    "custom": []
+  },
+  "keywords": [
+    "timeline",
+    "recent",
+    "时间线",
+    "最近更新",
+    "最近文档"
+  ]
+}
