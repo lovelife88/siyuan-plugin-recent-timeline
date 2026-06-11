@@ -61,24 +61,18 @@ export default class RecentTimelinePlugin extends Plugin {
       this.timelinePanel.loadData();
     }
 
-    // WebSocket 事件监听：文档变更时自动刷新
+    // WebSocket 事件监听：savedoc / transactions 时自动刷新
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const DEBOUNCE_MS = 2000;
 
     this.eventBus.on("ws-main", (event: any) => {
-      // event 是 CustomEvent，数据在 event.detail 中
       const cmd = event?.detail?.cmd;
-      const validCmds = ["saved", "updated", "removed", "moved", "transaction"];
+      if (!cmd) return;
 
-      // 只有当事件与文档变更相关时才触发刷新
-      if (cmd && validCmds.includes(cmd)) {
-        console.log("[Timeline] ws-main event, cmd:", cmd);
-        if (debounceTimer) {
-          clearTimeout(debounceTimer);
-        }
+      if (cmd === "savedoc" || cmd === "transactions") {
+        if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
           if (this.timelinePanel) {
-            console.log("[Timeline] auto-refreshing...");
             this.timelinePanel.loadData();
           }
         }, DEBOUNCE_MS);
