@@ -20,19 +20,6 @@ export default class RecentTimelinePlugin extends Plugin {
       </symbol>
     `);
 
-    // 添加顶栏图标
-    this.addTopBar({
-      icon: "iconRecentTimeline",
-      title: this.i18n.title,
-      position: "right",
-      callback: () => {
-        const dock = (this as any).docks[DOCK_TYPE];
-        if (dock) {
-          dock.toggle();
-        }
-      },
-    });
-
     // 注册 Dock 面板
     this.addDock({
       config: {
