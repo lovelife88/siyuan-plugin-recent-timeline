@@ -874,6 +874,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.timeline-settings__range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .timeline-settings__style-select {
   flex: 1;
   padding: 4px 8px;

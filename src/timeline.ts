@@ -76,6 +76,7 @@ export interface PluginSettings {
   truncateLines: number;  // 内容截断行数，0=不截断
   jumpMethod: JumpMethod; // 跳转方式：openTab 或 思源链接
   zoomIn: boolean;        // 跳转时是否聚焦到块（仅 openTab 方式生效）
+  refreshDelay: number;   // 自动刷新延迟（秒），0=关闭自动刷新
   style: StyleSettings;   // 样式配置
 }
 
@@ -85,6 +86,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   truncateLines: 3,
   jumpMethod: "openTab",
   zoomIn: true,
+  refreshDelay: 2,
   style: { ...DEFAULT_STYLE_SETTINGS },
 };
 
@@ -291,6 +293,14 @@ export class TimelinePanel {
               </label>
               <div class="timeline-settings__desc">${i18n.zoomInDesc}</div>
             </div>
+            <div class="timeline-settings__item">
+              <div class="timeline-settings__label">${i18n.refreshDelayLabel}</div>
+              <div class="timeline-settings__range-row">
+                <input class="timeline-settings__range" id="timeline-refresh-delay" type="range" min="0" max="10" step="0.5" value="${this.settings.refreshDelay}" />
+                <span class="timeline-settings__range-value" data-for="timeline-refresh-delay">${this.settings.refreshDelay === 0 ? i18n.refreshDelayOff : this.settings.refreshDelay + i18n.refreshDelayUnit}</span>
+              </div>
+              <div class="timeline-settings__desc">${i18n.refreshDelayDesc}</div>
+            </div>
           </div>
           <div class="timeline-settings__panel" data-panel="style">
             <div class="timeline-settings__group-title">${i18n.styleGroupTitle}</div>
@@ -480,6 +490,9 @@ export class TimelinePanel {
           // 行高不显示 px 后缀
           if (input.id === "style-title-line-height" || input.id === "style-content-line-height") {
             valueEl.textContent = input.value;
+          } else if (input.id === "timeline-refresh-delay") {
+            const val = parseFloat(input.value);
+            valueEl.textContent = val === 0 ? i18n.refreshDelayOff : input.value + i18n.refreshDelayUnit;
           } else {
             valueEl.textContent = input.value + "px";
           }
@@ -573,6 +586,8 @@ export class TimelinePanel {
       this.settings.jumpMethod = jumpMethodSelect.value as JumpMethod;
       const zoomInCheckbox = overlay.querySelector("#timeline-zoom-in") as HTMLInputElement;
       this.settings.zoomIn = zoomInCheckbox.checked;
+      const refreshDelaySlider = overlay.querySelector("#timeline-refresh-delay") as HTMLInputElement;
+      this.settings.refreshDelay = parseFloat(refreshDelaySlider.value) || 2;
 
       // 收集样式设置
       this.settings.style = this.collectStyleSettings(overlay);
@@ -733,12 +748,19 @@ export class TimelinePanel {
   }
 
   async loadData() {
+    const listEl = this.element.querySelector(".timeline-list") as HTMLElement;
+
+    // 平滑淡出
+    if (listEl.children.length > 0) {
+      listEl.style.transition = "opacity 0.18s ease";
+      listEl.style.opacity = "0";
+      await new Promise(r => setTimeout(r, 180));
+    }
+
     this.dataList = [];
     this.seenLeftTimes = new Map();
     this.colorIndex = 0;
     this.lastRenderedDate = "";
-
-    const listEl = this.element.querySelector(".timeline-list") as HTMLElement;
     listEl.innerHTML = "";
 
     // 隐藏空状态
@@ -747,6 +769,10 @@ export class TimelinePanel {
 
     this.noteBooks = await getNotebooks();
     await this.fetchAndRender(0, PAGE_SIZE);
+
+    // 淡入
+    listEl.style.transition = "opacity 0.25s ease";
+    listEl.style.opacity = "1";
   }
 
   async loadMore() {

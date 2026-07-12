@@ -50,19 +50,21 @@ export default class RecentTimelinePlugin extends Plugin {
 
     // WebSocket 事件监听：savedoc / transactions 时自动刷新
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const DEBOUNCE_MS = 2000;
 
     this.eventBus.on("ws-main", (event: any) => {
       const cmd = event?.detail?.cmd;
       if (!cmd) return;
 
       if (cmd === "savedoc" || cmd === "transactions") {
+        const delayMs = this.settings.refreshDelay * 1000;
+        if (delayMs <= 0) return; // 设为 0 时关闭自动刷新
+
         if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
           if (this.timelinePanel) {
             this.timelinePanel.loadData();
           }
-        }, DEBOUNCE_MS);
+        }, delayMs);
       }
     });
   }
