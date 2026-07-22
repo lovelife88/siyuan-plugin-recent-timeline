@@ -2,7 +2,7 @@
   "name": "siyuan-plugin-recent-timeline",
   "author": "lovelife88",
   "url": "https://github.com/lovelife88/siyuan-plugin-recent-timeline",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "minAppVersion": "2.10.3",
   "backends": ["windows", "linux", "darwin"],
   "frontends": ["desktop"],
@@ -21,10 +21,6 @@
     "zh_CN": "README_zh_CN.md",
     "en_US": "README.md"
   },
-  "i18n": [
-    "zh_CN",
-    "en_US"
-  ],
   "funding": {
     "custom": []
   },
