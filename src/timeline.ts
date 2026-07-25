@@ -99,6 +99,7 @@ export class TimelinePanel {
   private seenLeftTimes: Map<string, number> = new Map();
   private colorIndex = 0;
   private loading = false;
+  private requestSeq = 0; // 请求序列号，用于丢弃过期/乱序的并发加载响应
   private observer: IntersectionObserver | null = null;
   private scrollContainer: HTMLElement | null = null;
   private lastRenderedDate: string = "";
@@ -748,6 +749,9 @@ export class TimelinePanel {
   }
 
   async loadData() {
+    if (this.loading) return; // 阻止与 loadMore 并发
+    const seq = ++this.requestSeq; // 标记本次请求，用于丢弃过期响应
+
     const listEl = this.element.querySelector(".timeline-list") as HTMLElement;
 
     // 平滑淡出
@@ -755,6 +759,7 @@ export class TimelinePanel {
       listEl.style.transition = "opacity 0.18s ease";
       listEl.style.opacity = "0";
       await new Promise(r => setTimeout(r, 180));
+      if (seq !== this.requestSeq) return; // 期间有新刷新，放弃本次
     }
 
     this.dataList = [];
@@ -768,7 +773,7 @@ export class TimelinePanel {
     if (emptyEl) emptyEl.style.display = "none";
 
     this.noteBooks = await getNotebooks();
-    await this.fetchAndRender(0, PAGE_SIZE);
+    await this.fetchAndRender(0, PAGE_SIZE, seq);
 
     // 淡入
     listEl.style.transition = "opacity 0.25s ease";
@@ -777,20 +782,22 @@ export class TimelinePanel {
 
   async loadMore() {
     if (this.loading) return;
-    await this.fetchAndRender(this.dataList.length, PAGE_SIZE);
+    const seq = ++this.requestSeq;
+    await this.fetchAndRender(this.dataList.length, PAGE_SIZE, seq);
   }
 
-  private async fetchAndRender(offset: number, limit: number) {
+  private async fetchAndRender(offset: number, limit: number, seq: number) {
     this.setLoading(true);
 
     try {
       const blocks = await getRecentDocs(offset, limit);
+      if (seq !== this.requestSeq) return; // 过期请求，直接丢弃
 
       if (blocks.length === 0 && offset === 0) {
         const emptyEl = this.element.querySelector(
           ".timeline-empty"
         ) as HTMLElement;
-        emptyEl.style.display = "flex";
+        if (emptyEl) emptyEl.style.display = "flex";
         return;
       }
 
@@ -799,6 +806,7 @@ export class TimelinePanel {
       this.dataList = this.dataList.concat(newItems);
 
       await fillDocUpdatedContents(this.dataList, prevLength, this.settings.contentSortOrder, this.getIgnoreList());
+      if (seq !== this.requestSeq) return; // 填充期间被新刷新抢占，放弃渲染
       this.renderItems(newItems);
     } catch (err) {
       console.error("Failed to load timeline:", err);
@@ -807,8 +815,17 @@ export class TimelinePanel {
     }
   }
 
+  /** 统一语言判定：以思源运行语言为准，避免依赖 i18n 文案文本 */
+  private getLang(): "zh_CN" | "en_US" {
+    const lang =
+      (window as any).siyuan?.config?.lang ||
+      (this.plugin as any).app?.lang ||
+      "zh_CN";
+    return String(lang).startsWith("zh") ? "zh_CN" : "en_US";
+  }
+
   private transformBlocks(blocks: BlockData[]): TimelineItem[] {
-    const lang = this.plugin.i18n.title === "最近更新时间线" ? "zh_CN" : "en_US";
+    const lang = this.getLang();
     return blocks.map((x) => {
       const { year, month, day, hours, minutes } = parseSiyuanDate(x.updated);
       const leftTime = lang === "zh_CN"
@@ -840,18 +857,19 @@ export class TimelinePanel {
   }
 
   private isToday(dateStr: string): boolean {
+    // 与展示文本解耦，使用稳定的 YYYYMMDD 数值键比较，避免跨语言/跨天错位
     const now = new Date();
-    const y = String(now.getFullYear());
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    const lang = this.plugin.i18n.title === "最近更新时间线" ? "zh_CN" : "en_US";
-    const todayKey = lang === "zh_CN" ? `${y}年${m}月${d}日` : `${y}\n${m}/${d}`;
-    return dateStr.includes(todayKey);
+    const todayKey =
+      `${now.getFullYear()}` +
+      `${String(now.getMonth() + 1).padStart(2, "0")}` +
+      `${String(now.getDate()).padStart(2, "0")}`;
+    const digits = dateStr.replace(/\D/g, ""); // "2026年07月26日" / "2026\n07/26" → "20260726"
+    return digits.startsWith(todayKey);
   }
 
   private extractDateKey(item: TimelineItem): string {
     const { year, month, day } = parseSiyuanDate(item.updated);
-    const lang = this.plugin.i18n.title === "最近更新时间线" ? "zh_CN" : "en_US";
+    const lang = this.getLang();
     return lang === "zh_CN" ? `${year}年${month}月${day}日` : `${year}\n${month}/${day}`;
   }
 
@@ -866,7 +884,7 @@ export class TimelinePanel {
         const groupEl = document.createElement("div");
         const isToday = this.isToday(dateKey);
         groupEl.className = `timeline-date-group${isToday ? " timeline-date-group--today" : ""}`;
-        const lang = this.plugin.i18n.title === "最近更新时间线" ? "zh_CN" : "en_US";
+        const lang = this.getLang();
         const todayLabel = isToday
           ? (lang === "zh_CN" ? "📍 今天" : "📍 Today")
           : dateKey.replace("\n", " ");
@@ -894,7 +912,7 @@ export class TimelinePanel {
           <div class="timeline-item__title" data-id="${item.id}">${this.escapeHtml(item.title)}</div>
           <div class="timeline-item__content">
             ${item.content.map((c) => {
-              return `<div class="timeline-item__content-line" data-id="${c.id}">${c.html || this.escapeHtml(c.text)}</div>`;
+              return `<div class="timeline-item__content-line" data-id="${this.escapeHtml(c.id)}">${this.sanitizeHtml(c.html) || this.escapeHtml(c.text)}</div>`;
             }).join("")}
           </div>
           ${item.sub ? `
@@ -980,5 +998,36 @@ export class TimelinePanel {
   private escapeHtml(text: string): string {
     this.escapeDiv.textContent = text;
     return this.escapeDiv.innerHTML;
+  }
+
+  /** 白名单 sanitize：仅保留安全标签，剥离 script/iframe/object/embed 及所有 on* 属性与危险协议 */
+  private sanitizeHtml(html: string): string {
+    if (!html) return "";
+    const allowed = new Set([
+      "P", "BR", "STRONG", "B", "EM", "I", "CODE", "PRE", "UL", "OL", "LI",
+      "A", "H1", "H2", "H3", "H4", "H5", "H6", "BLOCKQUOTE", "SPAN", "DIV",
+      "IMG", "TABLE", "THEAD", "TBODY", "TR", "TD", "TH", "HR",
+    ]);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const walk = (node: Element) => {
+      Array.from(node.children).forEach((child) => {
+        if (!allowed.has(child.tagName)) {
+          child.replaceWith(...Array.from(child.childNodes)); // 去标签保留内容
+          return;
+        }
+        Array.from(child.attributes).forEach((attr) => {
+          const name = attr.name.toLowerCase();
+          if (name.startsWith("on")) child.removeAttribute(attr.name);
+          if (name === "href" || name === "src") {
+            const v = attr.value.toLowerCase();
+            if (v.startsWith("javascript:") || v.startsWith("data:text/html"))
+              child.removeAttribute(attr.name);
+          }
+        });
+        walk(child);
+      });
+    };
+    walk(doc.body);
+    return doc.body.innerHTML;
   }
 }

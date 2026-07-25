@@ -8,6 +8,25 @@ const STORAGE_KEY = "recent-timeline-settings";
 export default class RecentTimelinePlugin extends Plugin {
   private timelinePanel: TimelinePanel | null = null;
   private settings: PluginSettings = { ...DEFAULT_SETTINGS, style: { ...DEFAULT_STYLE_SETTINGS } };
+  private wsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // 提取为具名方法，保证 on/off 引用一致，避免热重载时监听器叠加
+  private onWsMain = (event: any) => {
+    const cmd = event?.detail?.cmd;
+    if (!cmd) return;
+
+    if (cmd === "savedoc" || cmd === "transactions") {
+      const delayMs = this.settings.refreshDelay * 1000;
+      if (delayMs <= 0) return; // 设为 0 时关闭自动刷新
+
+      if (this.wsDebounceTimer) clearTimeout(this.wsDebounceTimer);
+      this.wsDebounceTimer = setTimeout(() => {
+        if (this.timelinePanel) {
+          this.timelinePanel.loadData();
+        }
+      }, delayMs);
+    }
+  };
 
   async onload() {
     // 加载设置
@@ -49,27 +68,13 @@ export default class RecentTimelinePlugin extends Plugin {
     }
 
     // WebSocket 事件监听：savedoc / transactions 时自动刷新
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-    this.eventBus.on("ws-main", (event: any) => {
-      const cmd = event?.detail?.cmd;
-      if (!cmd) return;
-
-      if (cmd === "savedoc" || cmd === "transactions") {
-        const delayMs = this.settings.refreshDelay * 1000;
-        if (delayMs <= 0) return; // 设为 0 时关闭自动刷新
-
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          if (this.timelinePanel) {
-            this.timelinePanel.loadData();
-          }
-        }, delayMs);
-      }
-    });
+    this.eventBus.on("ws-main", this.onWsMain);
   }
 
   onunload() {
+    // 配对 off，避免热重载后监听器叠加导致重复刷新
+    this.eventBus.off("ws-main", this.onWsMain);
+    if (this.wsDebounceTimer) clearTimeout(this.wsDebounceTimer);
     if (this.timelinePanel) {
       this.timelinePanel.destroy();
       this.timelinePanel = null;

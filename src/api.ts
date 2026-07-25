@@ -97,7 +97,7 @@ export async function getRecentDocs(
   offset: number,
   limit: number
 ): Promise<BlockData[]> {
-  const stmt = `SELECT * FROM blocks WHERE type = 'd' ORDER BY updated DESC LIMIT ? OFFSET ?`;
+  const stmt = `SELECT id, updated, content, box, hpath, root_id FROM blocks WHERE type = 'd' ORDER BY updated DESC LIMIT ? OFFSET ?`;
   return sql(stmt, [limit, offset]);
 }
 
@@ -254,14 +254,14 @@ export function friendlyDate(dateString: string, lang: string = "zh_CN"): string
   const days = Math.floor(diff / (24 * 3600));
   const hrs = Math.floor(diff / 3600);
   const mins = Math.floor(diff / 60);
-  const secs = Math.floor(diff);
+  const totalSecs = Math.floor(diff);
 
   if (years > 0) { diffType = "year"; diffValue = years; }
   else if (months > 0) { diffType = "month"; diffValue = months; }
   else if (days > 0) { diffType = "day"; diffValue = days; }
   else if (hrs > 0) { diffType = "hour"; diffValue = hrs; }
   else if (mins > 0) { diffType = "minute"; diffValue = mins; }
-  else { diffType = "second"; diffValue = secs === 0 ? 1 : secs; }
+  else { diffType = "second"; diffValue = totalSecs === 0 ? 1 : totalSecs; }
 
   // 英文复数处理
   if (!isZh && diffValue > 1 && diffType !== "hour") {
