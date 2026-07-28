@@ -2,7 +2,7 @@ name: Build & Release
 
 # 自动打包策略：
 #  - 推送到 main（非 tag）：自动构建 + 打包 package.zip，并发布到滚动预发布版本 "latest"（无需手动上传）
-#  - 推送 v* tag：自动构建 + 打包，并创建正式 Release（标记为 Latest）
+#  - 推送 v* tag：自动构建 + 打包 package.zip，并创建正式 Release（含 package.zip，供思源集市自动识别版本更新）
 #  - 发起 PR 到 main：仅构建校验，不发布
 on:
   push:
@@ -67,7 +67,7 @@ jobs:
           files: |
             package.zip
 
-      # 推送 v* tag：创建正式 Release 并标记为 Latest
+      # 推送 v* tag：创建正式 Release 并上传 package.zip（思源集市据此识别版本更新）
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -79,3 +79,4 @@ jobs:
           make_latest: true
           files: |
             package.zip
+          fail_on_unmatched_files: true
