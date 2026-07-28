@@ -9,6 +9,7 @@ import {
   TimelineItem,
   BlockData,
   ContentSortOrder,
+  clearDocOrderCache,
 } from "./api";
 
 const PAGE_SIZE = 15;
@@ -751,6 +752,7 @@ export class TimelinePanel {
   async loadData() {
     if (this.loading) return; // 阻止与 loadMore 并发
     const seq = ++this.requestSeq; // 标记本次请求，用于丢弃过期响应
+    clearDocOrderCache(); // 刷新前清空文档顺序缓存，确保与最新文档结构一致
 
     const listEl = this.element.querySelector(".timeline-list") as HTMLElement;
 

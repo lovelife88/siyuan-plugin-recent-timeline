@@ -142,25 +142,61 @@ function renderMarkdown(md: string): string {
 /** 排序方式 */
 export type ContentSortOrder = "updated" | "document";
 
+// 文档内块顺序映射缓存：blockId -> 文档顺序索引（基于 DOM 顺序，与思源内核渲染一致）
+const docOrderCache = new Map<string, Map<string, number>>();
+
+/** 清空文档顺序缓存（每次刷新前调用，确保顺序与最新文档结构一致） */
+export function clearDocOrderCache(): void {
+  docOrderCache.clear();
+}
+
+/**
+ * 获取文档内块的文档顺序映射（blockId -> 顺序索引，从上到下递增）。
+ * 通过 /api/block/getBlockDOM 获取根文档 DOM，解析其中 [data-node-id] 的出现顺序，
+ * 该顺序与思源内核渲染及官方 Task 排序（taskSortShared.buildLiveTaskDomOrderMap）一致，
+ * 精确反映文档物理顺序，优于纯 SQL 近似（display_sort 字段不存在，ORDER BY path/id 对插入/移动块会错位）。
+ */
+async function getDocBlockOrder(rootId: string): Promise<Map<string, number>> {
+  const cached = docOrderCache.get(rootId);
+  if (cached) return cached;
+  const orderMap = new Map<string, number>();
+  try {
+    const res = await fetch("/api/block/getBlockDOM", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: rootId }),
+    });
+    const json = await res.json();
+    if (json.code === 0 && json.data && json.data.dom) {
+      const doc = new DOMParser().parseFromString(json.data.dom, "text/html");
+      const nodes = doc.querySelectorAll("[data-node-id]");
+      nodes.forEach((node, index) => {
+        const id = node.getAttribute("data-node-id");
+        if (id) orderMap.set(id, index);
+      });
+    }
+  } catch (e) {
+    console.warn("[Timeline] getDocBlockOrder failed for", rootId, e);
+  }
+  docOrderCache.set(rootId, orderMap);
+  return orderMap;
+}
+
 export async function getDocUpdatedContents(
   rootId: string,
   updatedDate: string,
   sortOrder: ContentSortOrder = "updated",
   ignoreList: string[] = []
 ): Promise<ContentItem[]> {
-  // 按更新时间排：b.updated DESC；按文档顺序排：display_sort ASC, display_id_for_sort ASC
-  // sort 是思源 blocks 表的排序字段，数值越小越靠前（文档块=0, 标题=5, 段落=10, 列表项=20）
-  const orderClause = sortOrder === "document"
-    ? `ORDER BY display_sort ASC, display_id_for_sort ASC`
-    : `ORDER BY b.updated DESC`;
+  // 按更新时间排：b.updated DESC；按文档顺序排：不在 SQL 层排序，
+  // 取数后在 JS 层用 getDocBlockOrder 的 DOM 顺序映射排序（精确、与内核一致）
+  const orderClause = sortOrder === "document" ? "" : `ORDER BY b.updated DESC`;
 
   const stmt = `
     SELECT
       CASE WHEN p.id IS NULL OR p.type NOT IN ('i', 'l', 'o') THEN b.id ELSE p.id END AS display_id,
       CASE WHEN p.id IS NULL OR p.type NOT IN ('i', 'l', 'o') THEN b.content ELSE p.content END AS display_content,
       CASE WHEN p.id IS NULL OR p.type NOT IN ('i', 'l', 'o') THEN b.markdown ELSE p.markdown END AS display_markdown,
-      CASE WHEN p.id IS NULL OR p.type NOT IN ('i', 'l', 'o') THEN b.sort ELSE p.sort END AS display_sort,
-      CASE WHEN p.id IS NULL OR p.type NOT IN ('i', 'l', 'o') THEN b.id ELSE p.id END AS display_id_for_sort,
       CASE WHEN p.id IS NULL THEN 'd' ELSE p.type END AS parent_type
     FROM blocks AS b
     LEFT JOIN blocks AS p ON b.parent_id = p.id
@@ -195,6 +231,16 @@ export async function getDocUpdatedContents(
         id: did,
       });
     }
+  }
+
+  // 按文档顺序排序：基于文档内块的 DOM 顺序映射，与思源内核渲染顺序一致
+  if (sortOrder === "document" && result.length > 0) {
+    const orderMap = await getDocBlockOrder(rootId);
+    result.sort((a, b) => {
+      const oa = orderMap.has(a.id) ? orderMap.get(a.id)! : Number.MAX_SAFE_INTEGER;
+      const ob = orderMap.has(b.id) ? orderMap.get(b.id)! : Number.MAX_SAFE_INTEGER;
+      return oa - ob;
+    });
   }
 
   return result;
