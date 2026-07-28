@@ -110,6 +110,7 @@ export class TimelinePanel {
   private seenLeftTimes: Map<string, number> = new Map();
   private colorIndex = 0;
   private loading = false;
+  private hasMore = false; // 是否还有更多数据（上一页拉满即视为可能还有）
   private requestSeq = 0; // 请求序列号，用于丢弃过期/乱序的并发加载响应
   private observer: IntersectionObserver | null = null;
   private scrollContainer: HTMLElement | null = null;
@@ -839,11 +840,28 @@ export class TimelinePanel {
     await this.fetchAndRender(this.dataList.length, PAGE_SIZE, seq);
   }
 
+  /**
+   * 自动填充式加载：当已渲染内容高度不足以撑满滚动容器（无滚动条）时，
+   * 继续加载下一页，直到内容撑满视口或已无更多数据 (hasMore=false)。
+   * 解决折叠后卡片变矮、初始高度不足导致无法滚动触底加载更多的问题。
+   */
+  private ensureFilled() {
+    const body = this.scrollContainer;
+    if (!body || !this.hasMore || this.loading) return;
+    const list = this.element.querySelector(".timeline-list") as HTMLElement;
+    if (!list) return;
+    // 列表未产生滚动条（内容高度不超过可视区）则继续加载下一页
+    if (body.scrollHeight <= body.clientHeight + 8) {
+      this.loadMore();
+    }
+  }
+
   private async fetchAndRender(offset: number, limit: number, seq: number) {
     this.setLoading(true);
 
     try {
       const blocks = await getRecentDocs(offset, limit);
+      this.hasMore = blocks.length === limit; // 满页说明可能还有下一页
       if (seq !== this.requestSeq) return; // 过期请求，直接丢弃
 
       if (blocks.length === 0 && offset === 0) {
@@ -876,6 +894,7 @@ export class TimelinePanel {
       console.error("Failed to load timeline:", err);
     } finally {
       this.setLoading(false);
+      this.ensureFilled(); // 内容不足撑满面板时自动续拉，直到撑满或到底
     }
   }
 

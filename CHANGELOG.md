@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-07-28
+
+### Fixed
+
+- 修复折叠模式下初始卡片数量少、面板高度不足导致无法滚动触底加载更多（"下拉刷新"）的问题：新增「自动填充式加载」，当已渲染内容高度不足以撑满滚动容器时自动续拉下一页，直到内容撑满视口或已无更多数据。
+
 ## [1.3.0] - 2026-07-28
 
 ### Added
