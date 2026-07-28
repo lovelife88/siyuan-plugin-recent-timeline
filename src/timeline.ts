@@ -7,6 +7,7 @@ import {
   parseSiyuanDate,
   getColor,
   TimelineItem,
+  ContentItem,
   BlockData,
   ContentSortOrder,
   clearDocOrderCache,
@@ -15,6 +16,9 @@ import {
 const PAGE_SIZE = 15;
 
 export type JumpMethod = "openTab" | "siyuanLink";
+
+// 文档卡片内容折叠模式：off=不折叠; hide=隐藏全部内容(仅显示卡片); fold=超出条目数折叠
+export type ContentFoldMode = "off" | "hide" | "fold";
 
 export interface StyleSettings {
   // 卡片标题
@@ -78,6 +82,9 @@ export interface PluginSettings {
   jumpMethod: JumpMethod; // 跳转方式：openTab 或 思源链接
   zoomIn: boolean;        // 跳转时是否聚焦到块（仅 openTab 方式生效）
   refreshDelay: number;   // 自动刷新延迟（秒），0=关闭自动刷新
+  hideEmptyContentDocs: boolean; // 隐藏无更新内容的文档卡片（如新建空文档）
+  contentFoldMode: ContentFoldMode; // 文档卡片内容折叠模式
+  contentFoldCount: number; // 折叠模式下显示的条目数（超出部分折叠，点击展开）
   style: StyleSettings;   // 样式配置
 }
 
@@ -88,6 +95,9 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   jumpMethod: "openTab",
   zoomIn: true,
   refreshDelay: 2,
+  hideEmptyContentDocs: false,
+  contentFoldMode: "off",
+  contentFoldCount: 5,
   style: { ...DEFAULT_STYLE_SETTINGS },
 };
 
@@ -303,6 +313,31 @@ export class TimelinePanel {
               </div>
               <div class="timeline-settings__desc">${i18n.refreshDelayDesc}</div>
             </div>
+            <div class="timeline-settings__item">
+              <div class="timeline-settings__label">${i18n.hideEmptyDocsLabel}</div>
+              <label class="timeline-settings__toggle">
+                <input class="timeline-settings__checkbox" id="timeline-hide-empty-docs" type="checkbox" ${this.settings.hideEmptyContentDocs ? "checked" : ""} />
+                <span>${i18n.hideEmptyDocsOn}</span>
+              </label>
+              <div class="timeline-settings__desc">${i18n.hideEmptyDocsDesc}</div>
+            </div>
+            <div class="timeline-settings__item">
+              <div class="timeline-settings__label">${i18n.foldModeLabel}</div>
+              <select class="timeline-settings__select" id="timeline-fold-mode">
+                <option value="off" ${this.settings.contentFoldMode === "off" ? "selected" : ""}>${i18n.foldOff}</option>
+                <option value="hide" ${this.settings.contentFoldMode === "hide" ? "selected" : ""}>${i18n.foldHide}</option>
+                <option value="fold" ${this.settings.contentFoldMode === "fold" ? "selected" : ""}>${i18n.foldFold}</option>
+              </select>
+              <div class="timeline-settings__desc">${i18n.foldModeDesc}</div>
+            </div>
+            <div class="timeline-settings__item" id="timeline-fold-count-item" style="${this.settings.contentFoldMode === "fold" ? "" : "display:none;"}">
+              <div class="timeline-settings__label">${i18n.foldCountLabel}</div>
+              <div class="timeline-settings__truncate-row">
+                <input class="timeline-settings__number" id="timeline-fold-count" type="number" min="1" max="50" value="${this.settings.contentFoldCount}" />
+                <span class="timeline-settings__truncate-suffix">${i18n.foldCountUnit}</span>
+              </div>
+              <div class="timeline-settings__desc">${i18n.foldCountDesc}</div>
+            </div>
           </div>
           <div class="timeline-settings__panel" data-panel="style">
             <div class="timeline-settings__group-title">${i18n.styleGroupTitle}</div>
@@ -483,6 +518,13 @@ export class TimelinePanel {
       zoomInItem.style.display = jumpMethodSelect.value === "openTab" ? "" : "none";
     });
 
+    // 折叠模式联动：选择「折叠超出部分」时显示条目数输入
+    const foldModeSelect = overlay.querySelector("#timeline-fold-mode") as HTMLSelectElement;
+    const foldCountItem = overlay.querySelector("#timeline-fold-count-item") as HTMLElement;
+    foldModeSelect.addEventListener("change", () => {
+      foldCountItem.style.display = foldModeSelect.value === "fold" ? "" : "none";
+    });
+
     // 滑块值同步
     overlay.querySelectorAll(".timeline-settings__range").forEach(range => {
       range.addEventListener("input", (e) => {
@@ -590,6 +632,15 @@ export class TimelinePanel {
       this.settings.zoomIn = zoomInCheckbox.checked;
       const refreshDelaySlider = overlay.querySelector("#timeline-refresh-delay") as HTMLInputElement;
       this.settings.refreshDelay = parseFloat(refreshDelaySlider.value) || 2;
+
+      // 隐藏无内容文档 + 折叠设置
+      const hideEmptyDocsCheckbox = overlay.querySelector("#timeline-hide-empty-docs") as HTMLInputElement;
+      this.settings.hideEmptyContentDocs = hideEmptyDocsCheckbox.checked;
+      const foldModeSel = overlay.querySelector("#timeline-fold-mode") as HTMLSelectElement;
+      this.settings.contentFoldMode = foldModeSel.value as ContentFoldMode;
+      const foldCountInput = overlay.querySelector("#timeline-fold-count") as HTMLInputElement;
+      const foldVal = parseInt(foldCountInput.value, 10);
+      this.settings.contentFoldCount = isNaN(foldVal) ? 5 : Math.max(1, foldVal);
 
       // 收集样式设置
       this.settings.style = this.collectStyleSettings(overlay);
@@ -809,7 +860,18 @@ export class TimelinePanel {
 
       await fillDocUpdatedContents(this.dataList, prevLength, this.settings.contentSortOrder, this.getIgnoreList());
       if (seq !== this.requestSeq) return; // 填充期间被新刷新抢占，放弃渲染
-      this.renderItems(newItems);
+
+      // 功能2：隐藏无更新内容的文档卡片（如新建空文档）
+      let renderItems = newItems;
+      if (this.settings.hideEmptyContentDocs) {
+        renderItems = newItems.filter(it => it.content.length > 0);
+        if (offset === 0 && renderItems.length === 0) {
+          const emptyEl = this.element.querySelector(".timeline-empty") as HTMLElement;
+          if (emptyEl) emptyEl.style.display = "flex";
+          return;
+        }
+      }
+      this.renderItems(renderItems);
     } catch (err) {
       console.error("Failed to load timeline:", err);
     } finally {
@@ -897,6 +959,8 @@ export class TimelinePanel {
         listEl.appendChild(groupEl);
       }
 
+      const contentHtml = this.buildContentHtml(item);
+
       const el = document.createElement("div");
       el.className = "timeline-item";
       el.style.animationDelay = `${index * 40}ms`;
@@ -912,11 +976,7 @@ export class TimelinePanel {
         </div>
         <div class="timeline-item__card">
           <div class="timeline-item__title" data-id="${item.id}">${this.escapeHtml(item.title)}</div>
-          <div class="timeline-item__content">
-            ${item.content.map((c) => {
-              return `<div class="timeline-item__content-line" data-id="${this.escapeHtml(c.id)}">${this.sanitizeHtml(c.html) || this.escapeHtml(c.text)}</div>`;
-            }).join("")}
-          </div>
+          ${contentHtml ? `<div class="timeline-item__content">${contentHtml}</div>` : ""}
           ${item.sub ? `
           <div class="timeline-item__meta">
             <svg class="timeline-item__path-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -956,8 +1016,63 @@ export class TimelinePanel {
         });
       });
 
+      // 折叠展开按钮交互（功能3）
+      const foldToggle = el.querySelector(".timeline-item__fold-toggle") as HTMLButtonElement | null;
+      if (foldToggle) {
+        foldToggle.addEventListener("click", () => {
+          const folded = el.querySelector(".timeline-item__folded") as HTMLElement | null;
+          if (!folded) return;
+          if (foldToggle.dataset.folded === "1") {
+            folded.hidden = false;
+            foldToggle.dataset.folded = "0";
+            foldToggle.textContent = this.ti("foldCollapse");
+          } else {
+            folded.hidden = true;
+            foldToggle.dataset.folded = "1";
+            foldToggle.textContent = this.ti("foldExpand", { n: folded.children.length });
+          }
+        });
+      }
+
       listEl.appendChild(el);
     });
+  }
+
+  /**
+   * 构建卡片内容区 HTML（功能3 折叠逻辑）
+   * - mode=hide 或无内容：返回空（不渲染内容区）
+   * - mode=fold 且超出条目数：显示前 N 条，其余折叠并提供展开按钮
+   * - 其他情况：显示全部
+   */
+  private buildContentHtml(item: TimelineItem): string {
+    const mode = this.settings.contentFoldMode;
+    if (mode === "hide" || item.content.length === 0) return "";
+
+    const lineHtml = (c: ContentItem) =>
+      `<div class="timeline-item__content-line" data-id="${this.escapeHtml(c.id)}">${this.sanitizeHtml(c.html) || this.escapeHtml(c.text)}</div>`;
+
+    if (mode === "fold" && this.settings.contentFoldCount > 0 && item.content.length > this.settings.contentFoldCount) {
+      const count = this.settings.contentFoldCount;
+      const shown = item.content.slice(0, count).map(lineHtml).join("");
+      const rest = item.content.slice(count).map(lineHtml).join("");
+      const expandLabel = this.ti("foldExpand", { n: item.content.length - count });
+      return shown +
+        `<div class="timeline-item__folded" hidden>${rest}</div>` +
+        `<button class="timeline-item__fold-toggle" type="button" data-folded="1">${expandLabel}</button>`;
+    }
+
+    return item.content.map(lineHtml).join("");
+  }
+
+  /** 读取 i18n 文案并替换 {占位符} */
+  private ti(key: string, params?: Record<string, string | number>): string {
+    let t = (this.plugin.i18n as any)[key] ?? key;
+    if (params) {
+      for (const k in params) {
+        t = t.replace(new RegExp("\\{" + k + "\\}", "g"), String(params[k]));
+      }
+    }
+    return t;
   }
 
   private gotoBlock(id: string, event?: Event) {

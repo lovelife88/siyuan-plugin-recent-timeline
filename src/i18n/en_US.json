@@ -62,5 +62,18 @@
   "styleWeightSemibold": "600 Semibold",
   "styleWeightBold": "700 Bold",
   "styleWeightExtrabold": "800 Extra Bold",
-  "styleWeightBlack": "900 Black"
+  "styleWeightBlack": "900 Black",
+  "hideEmptyDocsLabel": "Hide docs without content",
+  "hideEmptyDocsOn": "Hide when enabled",
+  "hideEmptyDocsDesc": "Hide cards for documents that have no updated content (e.g. newly created empty docs). Only cards with content updates are kept.",
+  "foldModeLabel": "Card Content Folding",
+  "foldModeDesc": "Control how updated content items are displayed within each card.",
+  "foldOff": "No folding (show all)",
+  "foldHide": "Hide all (card only)",
+  "foldFold": "Fold excess items",
+  "foldCountLabel": "Show count",
+  "foldCountUnit": "items",
+  "foldCountDesc": "In fold mode, only show the first N items; the rest fold and expand on click.",
+  "foldExpand": "Expand {n} ▾",
+  "foldCollapse": "Collapse ▴"
 }

@@ -62,5 +62,18 @@
   "styleWeightSemibold": "600 半粗",
   "styleWeightBold": "700 粗体",
   "styleWeightExtrabold": "800 特粗",
-  "styleWeightBlack": "900 黑体"
+  "styleWeightBlack": "900 黑体",
+  "hideEmptyDocsLabel": "隐藏无内容的文档",
+  "hideEmptyDocsOn": "启用后隐藏",
+  "hideEmptyDocsDesc": "新建且文档内没有任何更新内容的卡片将被隐藏，仅保留有内容更新的文档卡片。",
+  "foldModeLabel": "卡片内容折叠",
+  "foldModeDesc": "控制文档卡片内更新内容的显示方式。",
+  "foldOff": "不折叠（显示全部）",
+  "foldHide": "不显示（仅显示卡片）",
+  "foldFold": "折叠超出部分",
+  "foldCountLabel": "显示条目数",
+  "foldCountUnit": "条",
+  "foldCountDesc": "折叠模式下，仅显示前 N 条更新内容，超出部分折叠，点击展开。",
+  "foldExpand": "展开 {n} 条 ▾",
+  "foldCollapse": "收起 ▴"
 }

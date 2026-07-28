@@ -218,19 +218,21 @@ export async function getDocUpdatedContents(
     if (seen.has(did)) continue;
     seen.add(did);
 
-    if (item.display_content && item.display_content.length > 0) {
-      // 忽略内容过滤：去除标记/空白后与忽略列表完全匹配则跳过
-      const plainContent = removeURL(item.display_content).trim();
-      if (ignoreList.length > 0 && ignoreList.includes(plainContent)) continue;
+    // 功能1：跳过空行/纯空白内容（去除思源链接与首尾空白后仍为空也跳过）
+    if (!item.display_content || item.display_content.trim().length === 0) continue;
 
-      const md = item.display_markdown || item.display_content;
-      result.push({
-        text: removeURL(item.display_content),
-        markdown: md,
-        html: renderMarkdown(md),
-        id: did,
-      });
-    }
+    // 忽略内容过滤：去除链接与空白后与忽略列表完全匹配则跳过
+    const plainContent = removeURL(item.display_content).trim();
+    if (plainContent.length === 0) continue;
+    if (ignoreList.length > 0 && ignoreList.includes(plainContent)) continue;
+
+    const md = item.display_markdown || item.display_content;
+    result.push({
+      text: removeURL(item.display_content),
+      markdown: md,
+      html: renderMarkdown(md),
+      id: did,
+    });
   }
 
   // 按文档顺序排序：基于文档内块的 DOM 顺序映射，与思源内核渲染顺序一致

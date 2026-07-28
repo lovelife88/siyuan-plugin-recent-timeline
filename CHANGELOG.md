@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-07-28
+
+### Added
+
+- 空行过滤：自动跳过空行与纯空白内容，时间线不再展示空白更新条目。
+- 隐藏无内容的文档：新增设置项「隐藏无内容的文档」，可隐藏新建且没有任何内容更新的文档卡片，仅保留有更新内容的卡片。
+- 文档卡片内容折叠：新增设置项「卡片内容折叠」，支持三种模式：
+  - 不折叠（显示全部）
+  - 不显示（仅显示文档卡片，隐藏全部内容更新）
+  - 折叠超出部分（设置显示条目数，超出部分折叠，点击「展开 N 条」后显示）
+
 ## [1.2.0] - 2026-07-28
 
 ### Added
