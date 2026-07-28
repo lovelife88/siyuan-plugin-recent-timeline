@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-07-28
+
+### Added
+
+- 移动端适配：plugin.json 声明支持移动端（frontends 增加 `mobile`，backends 增加 `android`/`ios`），插件可在手机 App 中加载与使用。
+- 移动端响应式布局：设置面板在窄屏下接近全屏（92vw），卡片标题与内容字号放大、左侧时间列收窄、头部操作按钮放大，提升触摸阅读与点按体验；文档跳转已按前端类型自动切换（移动端走 `siyuan://` 协议）。
+
 ## [1.3.1] - 2026-07-28
 
 ### Fixed

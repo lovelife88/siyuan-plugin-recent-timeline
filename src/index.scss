@@ -1067,3 +1067,46 @@
     opacity: 0.9;
   }
 }
+
+// ---- 移动端适配 ----
+// 适配手机 / 窄屏：卡片触摸友好、设置面板近全屏、头部操作按钮放大
+@media (max-width: 768px) {
+  // 设置面板在窄屏下接近全屏，避免横向溢出（参照官方 sample 的 92vw 规范）
+  .timeline-settings {
+    width: 92vw;
+    max-width: 92vw;
+    max-height: 90vh;
+  }
+
+  .timeline-settings__body {
+    max-height: calc(90vh - 130px);
+  }
+
+  // 卡片标题与内容字号放大，提升阅读与触摸体验
+  .timeline-item__title {
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .timeline-item__content-line {
+    font-size: 13px;
+    padding: 6px 8px;
+  }
+
+  // 左侧时间列收窄，为内容留更多空间
+  .timeline-item__left {
+    width: 52px;
+  }
+
+  // 头部操作按钮放大，便于手指点按
+  .timeline-header__refresh,
+  .timeline-header__top,
+  .timeline-header__settings {
+    width: 34px;
+    height: 34px;
+  }
+
+  .timeline-item__card {
+    padding: var(--tl-card-pad, 6px) 12px;
+  }
+}
