@@ -17,6 +17,7 @@ export default class RecentTimelinePlugin extends Plugin {
   private onWsMain = (event: any) => {
     const cmd = event?.detail?.cmd;
     if (!cmd) return;
+    console.log("[Timeline][ws-main] cmd =", cmd, "| refreshDelay(s) =", this.settings.refreshDelay);
 
     const delayMs = this.settings.refreshDelay * 1000;
     if (delayMs <= 0) return; // 设为 0 时关闭自动刷新
@@ -48,6 +49,7 @@ export default class RecentTimelinePlugin extends Plugin {
         }
       }
       const ids = Array.from(rootIds);
+      console.log("[Timeline] flush -> blockIds:", blockIds.length, "resolved rootIds:", ids.length, ids.slice(0, 8));
       if (ids.length > 0 && this.timelinePanel) {
         // 局部刷新对应文档卡片，而非重建整个列表
         this.timelinePanel.refreshDocs(ids);
@@ -63,21 +65,33 @@ export default class RecentTimelinePlugin extends Plugin {
    */
   private collectBlockIdsFromTx(data: any): string[] {
     const ids = new Set<string>();
-    const batches = data?.data;
-    const arr = Array.isArray(batches) ? batches : (data ? [data] : []);
-    for (const batch of arr) {
-      const txList = batch?.transactions || data?.transactions;
-      if (!Array.isArray(txList)) continue;
-      for (const tx of txList) {
-        const ops = tx?.doOperations;
-        if (!Array.isArray(ops)) continue;
-        for (const op of ops) {
+    // 递归遍历任意嵌套结构，收集所有 doOperation 的块 id 与 root_id。
+    // 思源 transactions 推送结构随版本/操作类型变化（data.data[].transactions[].doOperations[]
+    // 或 data.transactions[] 或含 doOperations 的其它节点），递归遍历可稳健覆盖。
+    const walk = (node: any, depth: number): void => {
+      if (node == null || depth > 10) return;
+      if (Array.isArray(node)) {
+        for (const n of node) walk(n, depth + 1);
+        return;
+      }
+      if (typeof node !== "object") return;
+      if (Array.isArray(node.doOperations)) {
+        for (const op of node.doOperations) {
           const bid = op?.id || op?.data?.id;
           if (bid) ids.add(bid);
           if (op?.data?.root_id) ids.add(op.data.root_id);
+          if (op?.root_id) ids.add(op.root_id);
         }
       }
-    }
+      if (Array.isArray(node.transactions)) {
+        for (const tx of node.transactions) walk(tx, depth + 1);
+      }
+      for (const key of Object.keys(node)) {
+        if (key === "doOperations" || key === "transactions") continue;
+        walk((node as any)[key], depth + 1);
+      }
+    };
+    walk(data, 0);
     return Array.from(ids);
   }
 
