@@ -1102,8 +1102,7 @@ export class TimelinePanel {
         // 已在当前列表内
         item = this.dataList[idx];
       } else {
-        // 老文档：不在当前已加载列表内
-        if (sortOrder === "document") continue; // document 排序无法定位文档顺序，忽略插入
+        // 老文档：不在当前已加载列表内（置顶/插入是卡片间行为，与 contentSortOrder 无关）
         const block = await getDocById(rid);
         if (!block) continue;
         item = this.transformBlock(block);
@@ -1133,14 +1132,7 @@ export class TimelinePanel {
 
       const newEl = this.createItemElement(item, 0, false);
 
-      // document 排序：原地刷新，不动位置
-      if (idx >= 0 && sortOrder === "document") {
-        const oldEl = listEl.querySelector(`.timeline-item[data-root-id="${rid}"]`);
-        if (oldEl) oldEl.replaceWith(newEl);
-        continue;
-      }
-
-      // updated 排序（或新插入的老文档）：置顶到「今天」组
+      // 置顶到「今天」组（卡片间排序由文档 updated 决定，与 contentSortOrder 无关；contentSortOrder 仅影响卡片内部更新内容排序）
       if (idx >= 0) {
         const oldEl = listEl.querySelector(`.timeline-item[data-root-id="${rid}"]`);
         if (oldEl) oldEl.remove();
