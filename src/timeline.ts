@@ -3,6 +3,7 @@ import {
   getNotebooks,
   getRecentDocs,
   fillDocUpdatedContents,
+  getDocUpdatedContents,
   friendlyDate,
   parseSiyuanDate,
   getColor,
@@ -956,6 +957,96 @@ export class TimelinePanel {
     return lang === "zh_CN" ? `${year}年${month}月${day}日` : `${year}\n${month}/${day}`;
   }
 
+  /**
+   * 创建单张文档卡片元素（含事件绑定）。
+   * 全量渲染 (renderItems) 与局部刷新 (refreshDocs) 共用，确保两套路径渲染出的卡片一致。
+   * @param withAnim 是否播放入场动画（局部刷新传 false，避免单卡闪烁）
+   */
+  private createItemElement(item: TimelineItem, index: number, withAnim: boolean): HTMLElement {
+    const el = document.createElement("div");
+    el.className = "timeline-item";
+    el.dataset.rootId = item.id; // 文档 root id，用于局部刷新时定位该卡片
+
+    const contentHtml = this.buildContentHtml(item);
+
+    el.innerHTML = `
+      <div class="timeline-item__left">
+        <div class="timeline-item__date">${item.leftTime.replace("\n", "<br>")}</div>
+        <div class="timeline-item__time">${item.leftContent}</div>
+      </div>
+      <div class="timeline-item__axis">
+        <div class="timeline-item__dot" style="background-color: ${item.color}"></div>
+        <div class="timeline-item__line"></div>
+      </div>
+      <div class="timeline-item__card">
+        <div class="timeline-item__title" data-id="${item.id}">${this.escapeHtml(item.title)}</div>
+        ${contentHtml ? `<div class="timeline-item__content">${contentHtml}</div>` : ""}
+        ${item.sub ? `
+        <div class="timeline-item__meta">
+          <svg class="timeline-item__path-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span class="timeline-item__path">${this.escapeHtml(item.sub)}</span>
+          <span class="timeline-item__friendly">${item.friendlyTime}</span>
+        </div>
+        ` : ""}
+      </div>
+    `;
+
+    if (withAnim) {
+      el.style.animationDelay = `${index * 40}ms`;
+    } else {
+      // 局部刷新：禁用入场动画，避免单卡突兀闪现
+      el.style.animation = "none";
+    }
+
+    // 标题点击跳转
+    const titleEl = el.querySelector(".timeline-item__title") as HTMLElement;
+    titleEl.addEventListener("click", (e) => {
+      this.gotoBlock(item.id, e);
+    });
+
+    // 子内容：点击跳转 + 截断控制
+    const contentEls = el.querySelectorAll(
+      ".timeline-item__content-line"
+    ) as NodeListOf<HTMLElement>;
+    contentEls.forEach((cel) => {
+      this.applyTruncation(cel);
+
+      cel.addEventListener("click", (e) => {
+        const cid = cel.getAttribute("data-id");
+        if (cid) this.gotoBlock(cid, e);
+      });
+      cel.addEventListener("mouseenter", () => {
+        cel.style.display = "block";
+        cel.style.overflow = "";
+      });
+      cel.addEventListener("mouseleave", () => {
+        this.applyTruncation(cel);
+      });
+    });
+
+    // 折叠展开按钮交互（功能3）
+    const foldToggle = el.querySelector(".timeline-item__fold-toggle") as HTMLButtonElement | null;
+    if (foldToggle) {
+      foldToggle.addEventListener("click", () => {
+        const folded = el.querySelector(".timeline-item__folded") as HTMLElement | null;
+        if (!folded) return;
+        if (foldToggle.dataset.folded === "1") {
+          folded.hidden = false;
+          foldToggle.dataset.folded = "0";
+          foldToggle.textContent = this.ti("foldCollapse");
+        } else {
+          folded.hidden = true;
+          foldToggle.dataset.folded = "1";
+          foldToggle.textContent = this.ti("foldExpand", { n: folded.children.length });
+        }
+      });
+    }
+
+    return el;
+  }
+
   private renderItems(items: TimelineItem[]) {
     const listEl = this.element.querySelector(".timeline-list") as HTMLElement;
 
@@ -978,83 +1069,59 @@ export class TimelinePanel {
         listEl.appendChild(groupEl);
       }
 
-      const contentHtml = this.buildContentHtml(item);
-
-      const el = document.createElement("div");
-      el.className = "timeline-item";
-      el.style.animationDelay = `${index * 40}ms`;
-
-      el.innerHTML = `
-        <div class="timeline-item__left">
-          <div class="timeline-item__date">${item.leftTime.replace("\n", "<br>")}</div>
-          <div class="timeline-item__time">${item.leftContent}</div>
-        </div>
-        <div class="timeline-item__axis">
-          <div class="timeline-item__dot" style="background-color: ${item.color}"></div>
-          <div class="timeline-item__line"></div>
-        </div>
-        <div class="timeline-item__card">
-          <div class="timeline-item__title" data-id="${item.id}">${this.escapeHtml(item.title)}</div>
-          ${contentHtml ? `<div class="timeline-item__content">${contentHtml}</div>` : ""}
-          ${item.sub ? `
-          <div class="timeline-item__meta">
-            <svg class="timeline-item__path-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            </svg>
-            <span class="timeline-item__path">${this.escapeHtml(item.sub)}</span>
-            <span class="timeline-item__friendly">${item.friendlyTime}</span>
-          </div>
-          ` : ""}
-        </div>
-      `;
-
-      // 标题点击跳转
-      const titleEl = el.querySelector(".timeline-item__title") as HTMLElement;
-      titleEl.addEventListener("click", (e) => {
-        this.gotoBlock(item.id, e);
-      });
-
-      // 子内容：点击跳转 + 截断控制
-      const contentEls = el.querySelectorAll(
-        ".timeline-item__content-line"
-      ) as NodeListOf<HTMLElement>;
-      contentEls.forEach((cel) => {
-        // 初始应用截断
-        this.applyTruncation(cel);
-
-        cel.addEventListener("click", (e) => {
-          const cid = cel.getAttribute("data-id");
-          if (cid) this.gotoBlock(cid, e);
-        });
-        cel.addEventListener("mouseenter", () => {
-          cel.style.display = "block";
-          cel.style.overflow = "";
-        });
-        cel.addEventListener("mouseleave", () => {
-          this.applyTruncation(cel);
-        });
-      });
-
-      // 折叠展开按钮交互（功能3）
-      const foldToggle = el.querySelector(".timeline-item__fold-toggle") as HTMLButtonElement | null;
-      if (foldToggle) {
-        foldToggle.addEventListener("click", () => {
-          const folded = el.querySelector(".timeline-item__folded") as HTMLElement | null;
-          if (!folded) return;
-          if (foldToggle.dataset.folded === "1") {
-            folded.hidden = false;
-            foldToggle.dataset.folded = "0";
-            foldToggle.textContent = this.ti("foldCollapse");
-          } else {
-            folded.hidden = true;
-            foldToggle.dataset.folded = "1";
-            foldToggle.textContent = this.ti("foldExpand", { n: folded.children.length });
-          }
-        });
-      }
-
+      const el = this.createItemElement(item, index, true);
       listEl.appendChild(el);
     });
+  }
+
+  /**
+   * 局部刷新：仅更新指定文档对应的卡片，不重建整个列表 DOM。
+   * 由 index.ts 的 ws 事件监听器在文档被编辑时调用。
+   * @param rootIds 需要刷新的文档 root id 集合
+   */
+  async refreshDocs(rootIds: string[]): Promise<void> {
+    if (this.loading) return; // 全量加载进行中，跳过（下次全量会包含最新数据）
+    if (!rootIds || rootIds.length === 0) return;
+
+    const ignoreList = this.getIgnoreList();
+    const sortOrder = this.settings.contentSortOrder;
+    const lang = this.getLang();
+
+    // 思源日期格式 YYYYMMDDHHMMSS
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const nowStr =
+      `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+      `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+
+    const listEl = this.element.querySelector(".timeline-list") as HTMLElement | null;
+
+    for (const rid of rootIds) {
+      const idx = this.dataList.findIndex((it) => it.id === rid);
+      if (idx < 0) continue; // 该文档不在当前已渲染列表内（如超出前 N 条的老文档），忽略
+
+      const item = this.dataList[idx];
+      const updatedDate = item.updated.slice(0, 8); // 取该文档所属日期，与全量逻辑一致
+      try {
+        const contents = await getDocUpdatedContents(item.id, updatedDate, sortOrder, ignoreList);
+        item.content = contents;
+        item.updated = nowStr;
+        item.friendlyTime = friendlyDate(nowStr, lang);
+      } catch (err) {
+        console.warn("[Timeline] refreshDocs failed for", rid, err);
+        continue;
+      }
+
+      if (!listEl) continue;
+      // 原地替换该卡片，其它卡片与其它 DOM 完全不动
+      const oldEl = listEl.querySelector(
+        `.timeline-item[data-root-id="${rid}"]`
+      ) as HTMLElement | null;
+      if (oldEl) {
+        const newEl = this.createItemElement(item, 0, false);
+        oldEl.replaceWith(newEl);
+      }
+    }
   }
 
   /**

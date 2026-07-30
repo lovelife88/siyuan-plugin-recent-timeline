@@ -9,24 +9,64 @@ export default class RecentTimelinePlugin extends Plugin {
   private timelinePanel: TimelinePanel | null = null;
   private settings: PluginSettings = { ...DEFAULT_SETTINGS, style: { ...DEFAULT_STYLE_SETTINGS } };
   private wsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingRootIds: Set<string> = new Set(); // 防抖窗口内累积待刷新的文档 root id
 
   // 提取为具名方法，保证 on/off 引用一致，避免热重载时监听器叠加
   private onWsMain = (event: any) => {
     const cmd = event?.detail?.cmd;
     if (!cmd) return;
 
-    if (cmd === "savedoc" || cmd === "transactions") {
-      const delayMs = this.settings.refreshDelay * 1000;
-      if (delayMs <= 0) return; // 设为 0 时关闭自动刷新
-
-      if (this.wsDebounceTimer) clearTimeout(this.wsDebounceTimer);
-      this.wsDebounceTimer = setTimeout(() => {
-        if (this.timelinePanel) {
-          this.timelinePanel.loadData();
-        }
-      }, delayMs);
+    // 解析本次事件涉及的文档 root id 集合
+    let rootIds: string[] = [];
+    if (cmd === "savedoc") {
+      const id = event?.detail?.data?.id;
+      if (id) rootIds.push(id);
+    } else if (cmd === "transactions") {
+      rootIds = this.extractRootIdsFromTx(event?.detail?.data);
+    } else {
+      return;
     }
+
+    if (rootIds.length === 0) return;
+
+    const delayMs = this.settings.refreshDelay * 1000;
+    if (delayMs <= 0) return; // 设为 0 时关闭自动刷新
+
+    // 累积到防抖窗口，避免一次编辑触发多次刷新
+    rootIds.forEach((r) => this.pendingRootIds.add(r));
+    if (this.wsDebounceTimer) clearTimeout(this.wsDebounceTimer);
+    this.wsDebounceTimer = setTimeout(() => {
+      const ids = Array.from(this.pendingRootIds);
+      this.pendingRootIds.clear();
+      if (this.timelinePanel) {
+        // 局部刷新对应文档卡片，而非重建整个列表
+        this.timelinePanel.refreshDocs(ids);
+      }
+    }, delayMs);
   };
+
+  /**
+   * 从 transactions ws 事件中提取被修改文档的 root id 集合。
+   * 思源内核推送结构：data.data[].transactions[].doOperations[].{data.root_id | data.id | id}
+   */
+  private extractRootIdsFromTx(data: any): string[] {
+    const ids = new Set<string>();
+    const batches = data?.data;
+    if (!Array.isArray(batches)) return [];
+    for (const batch of batches) {
+      const txs = batch?.transactions;
+      if (!Array.isArray(txs)) continue;
+      for (const tx of txs) {
+        const ops = tx?.doOperations;
+        if (!Array.isArray(ops)) continue;
+        for (const op of ops) {
+          const root = op?.data?.root_id || op?.data?.id || op?.id;
+          if (root) ids.add(root);
+        }
+      }
+    }
+    return Array.from(ids);
+  }
 
   async onload() {
     // 加载设置
@@ -75,6 +115,7 @@ export default class RecentTimelinePlugin extends Plugin {
     // 配对 off，避免热重载后监听器叠加导致重复刷新
     this.eventBus.off("ws-main", this.onWsMain);
     if (this.wsDebounceTimer) clearTimeout(this.wsDebounceTimer);
+    this.pendingRootIds.clear();
     if (this.timelinePanel) {
       this.timelinePanel.destroy();
       this.timelinePanel = null;
