@@ -111,6 +111,19 @@ export async function getDocById(rootId: string): Promise<BlockData | null> {
   return rows[0];
 }
 
+/** 批量将块 id 解析为所属文档的 root_id。
+ *  transactions 事件的 doOperation 通常不含 root_id（纯文本编辑的 update 操作只有块 id），
+ *  故先收集块 id，再批量查 blocks 表映射回文档 root_id，用于局部刷新定位文档。 */
+export async function getRootIdsByBlockIds(blockIds: string[]): Promise<string[]> {
+  if (!blockIds || blockIds.length === 0) return [];
+  const placeholders = blockIds.map(() => "?").join(",");
+  const rows = (await sql(
+    `SELECT DISTINCT root_id FROM blocks WHERE id IN (${placeholders}) AND root_id != ''`,
+    blockIds
+  )) as { root_id: string }[];
+  return rows.map((r) => r.root_id).filter(Boolean);
+}
+
 /** 使用思源内置 Lute 引擎将 Markdown 渲染为 HTML */
 function renderMarkdown(md: string): string {
   try {

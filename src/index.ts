@@ -1,5 +1,6 @@
 import { Plugin } from "siyuan";
 import "./index.scss";
+import { getRootIdsByBlockIds } from "./api";
 import { TimelinePanel, DEFAULT_SETTINGS, DEFAULT_STYLE_SETTINGS, PluginSettings } from "./timeline";
 
 const DOCK_TYPE = "recent-timeline-dock";
@@ -9,36 +10,45 @@ export default class RecentTimelinePlugin extends Plugin {
   private timelinePanel: TimelinePanel | null = null;
   private settings: PluginSettings = { ...DEFAULT_SETTINGS, style: { ...DEFAULT_STYLE_SETTINGS } };
   private wsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private pendingRootIds: Set<string> = new Set(); // 防抖窗口内累积待刷新的文档 root id
+  private pendingRootIds: Set<string> = new Set(); // 防抖窗口内累积待刷新的文档 root id（来自 savedoc 或已解析）
+  private pendingBlockIds: Set<string> = new Set(); // 防抖窗口内累积事务涉及的块 id（来自 transactions，flush 时解析为 root_id）
 
   // 提取为具名方法，保证 on/off 引用一致，避免热重载时监听器叠加
   private onWsMain = (event: any) => {
     const cmd = event?.detail?.cmd;
     if (!cmd) return;
 
-    // 解析本次事件涉及的文档 root id 集合
-    let rootIds: string[] = [];
+    const delayMs = this.settings.refreshDelay * 1000;
+    if (delayMs <= 0) return; // 设为 0 时关闭自动刷新
+
     if (cmd === "savedoc") {
+      // savedoc 事件的 detail.data.id 即为文档 root_id
       const id = event?.detail?.data?.id;
-      if (id) rootIds.push(id);
+      if (id) this.pendingRootIds.add(id);
     } else if (cmd === "transactions") {
-      rootIds = this.extractRootIdsFromTx(event?.detail?.data);
+      // transactions 的 doOperation 通常不含 root_id（纯文本编辑只有块 id），
+      // 先收集块 id，flush 时再批量解析为所属文档的 root_id
+      this.collectBlockIdsFromTx(event?.detail?.data).forEach((b) => this.pendingBlockIds.add(b));
     } else {
       return;
     }
 
-    if (rootIds.length === 0) return;
-
-    const delayMs = this.settings.refreshDelay * 1000;
-    if (delayMs <= 0) return; // 设为 0 时关闭自动刷新
-
-    // 累积到防抖窗口，避免一次编辑触发多次刷新
-    rootIds.forEach((r) => this.pendingRootIds.add(r));
     if (this.wsDebounceTimer) clearTimeout(this.wsDebounceTimer);
-    this.wsDebounceTimer = setTimeout(() => {
-      const ids = Array.from(this.pendingRootIds);
+    this.wsDebounceTimer = setTimeout(async () => {
+      const rootIds = new Set<string>(this.pendingRootIds);
       this.pendingRootIds.clear();
-      if (this.timelinePanel) {
+      const blockIds = Array.from(this.pendingBlockIds);
+      this.pendingBlockIds.clear();
+      if (blockIds.length > 0) {
+        try {
+          const roots = await getRootIdsByBlockIds(blockIds);
+          roots.forEach((r) => rootIds.add(r));
+        } catch (err) {
+          console.warn("[Timeline] 解析块 id 为 root_id 失败", err);
+        }
+      }
+      const ids = Array.from(rootIds);
+      if (ids.length > 0 && this.timelinePanel) {
         // 局部刷新对应文档卡片，而非重建整个列表
         this.timelinePanel.refreshDocs(ids);
       }
@@ -46,22 +56,25 @@ export default class RecentTimelinePlugin extends Plugin {
   };
 
   /**
-   * 从 transactions ws 事件中提取被修改文档的 root id 集合。
-   * 思源内核推送结构：data.data[].transactions[].doOperations[].{data.root_id | data.id | id}
+   * 从 transactions ws 事件中提取被修改的块 id 集合。
+   * 思源内核推送结构：data.data[].transactions[].doOperations[].id（块 id）。
+   * 注意：doOperation 通常不直接含 root_id（纯文本编辑的 update 操作只有块 id），
+   * 因此先收集块 id，flush 时再批量解析为所属文档的 root_id。
    */
-  private extractRootIdsFromTx(data: any): string[] {
+  private collectBlockIdsFromTx(data: any): string[] {
     const ids = new Set<string>();
     const batches = data?.data;
-    if (!Array.isArray(batches)) return [];
-    for (const batch of batches) {
-      const txs = batch?.transactions;
-      if (!Array.isArray(txs)) continue;
-      for (const tx of txs) {
+    const arr = Array.isArray(batches) ? batches : (data ? [data] : []);
+    for (const batch of arr) {
+      const txList = batch?.transactions || data?.transactions;
+      if (!Array.isArray(txList)) continue;
+      for (const tx of txList) {
         const ops = tx?.doOperations;
         if (!Array.isArray(ops)) continue;
         for (const op of ops) {
-          const root = op?.data?.root_id || op?.data?.id || op?.id;
-          if (root) ids.add(root);
+          const bid = op?.id || op?.data?.id;
+          if (bid) ids.add(bid);
+          if (op?.data?.root_id) ids.add(op.data.root_id);
         }
       }
     }
@@ -116,6 +129,7 @@ export default class RecentTimelinePlugin extends Plugin {
     this.eventBus.off("ws-main", this.onWsMain);
     if (this.wsDebounceTimer) clearTimeout(this.wsDebounceTimer);
     this.pendingRootIds.clear();
+    this.pendingBlockIds.clear();
     if (this.timelinePanel) {
       this.timelinePanel.destroy();
       this.timelinePanel = null;
