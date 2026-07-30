@@ -4,6 +4,7 @@ import {
   getRecentDocs,
   fillDocUpdatedContents,
   getDocUpdatedContents,
+  getDocById,
   friendlyDate,
   parseSiyuanDate,
   getColor,
@@ -908,36 +909,38 @@ export class TimelinePanel {
     return String(lang).startsWith("zh") ? "zh_CN" : "en_US";
   }
 
-  private transformBlocks(blocks: BlockData[]): TimelineItem[] {
+  private transformBlock(x: BlockData): TimelineItem {
     const lang = this.getLang();
-    return blocks.map((x) => {
-      const { year, month, day, hours, minutes } = parseSiyuanDate(x.updated);
-      const leftTime = lang === "zh_CN"
-        ? `${year}年\n${month}月${day}日`
-        : `${year}\n${month}/${day}`;
-      const leftContent = `${hours}:${minutes}`;
-      let _leftTime: string;
+    const { year, month, day, hours, minutes } = parseSiyuanDate(x.updated);
+    const leftTime = lang === "zh_CN"
+      ? `${year}年\n${month}月${day}日`
+      : `${year}\n${month}/${day}`;
+    const leftContent = `${hours}:${minutes}`;
+    let _leftTime: string;
 
-      if (this.seenLeftTimes.has(leftTime)) {
-        this.seenLeftTimes.set(leftTime, this.seenLeftTimes.get(leftTime)! + 1);
-        _leftTime = "";
-      } else {
-        this.seenLeftTimes.set(leftTime, 1);
-        _leftTime = leftTime;
-      }
+    if (this.seenLeftTimes.has(leftTime)) {
+      this.seenLeftTimes.set(leftTime, this.seenLeftTimes.get(leftTime)! + 1);
+      _leftTime = "";
+    } else {
+      this.seenLeftTimes.set(leftTime, 1);
+      _leftTime = leftTime;
+    }
 
-      return {
-        id: x.id,
-        updated: x.updated,
-        title: x.content,
-        content: [],
-        sub: (this.noteBooks.get(x.box) || "") + x.hpath,
-        leftTime: _leftTime,
-        leftContent,
-        color: getColor(this.colorIndex++),
-        friendlyTime: friendlyDate(x.updated, lang),
-      };
-    });
+    return {
+      id: x.id,
+      updated: x.updated,
+      title: x.content,
+      content: [],
+      sub: (this.noteBooks.get(x.box) || "") + x.hpath,
+      leftTime: _leftTime,
+      leftContent,
+      color: getColor(this.colorIndex++),
+      friendlyTime: friendlyDate(x.updated, lang),
+    };
+  }
+
+  private transformBlocks(blocks: BlockData[]): TimelineItem[] {
+    return blocks.map((x) => this.transformBlock(x));
   }
 
   private isToday(dateStr: string): boolean {
@@ -1086,41 +1089,106 @@ export class TimelinePanel {
     const ignoreList = this.getIgnoreList();
     const sortOrder = this.settings.contentSortOrder;
     const lang = this.getLang();
-
-    // 思源日期格式 YYYYMMDDHHMMSS
-    const d = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const nowStr =
-      `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
-      `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    const nowStr = this.formatNow();
 
     const listEl = this.element.querySelector(".timeline-list") as HTMLElement | null;
+    if (!listEl) return;
 
     for (const rid of rootIds) {
-      const idx = this.dataList.findIndex((it) => it.id === rid);
-      if (idx < 0) continue; // 该文档不在当前已渲染列表内（如超出前 N 条的老文档），忽略
+      let idx = this.dataList.findIndex((it) => it.id === rid);
+      let item: TimelineItem;
 
-      const item = this.dataList[idx];
-      const updatedDate = item.updated.slice(0, 8); // 取该文档所属日期，与全量逻辑一致
-      try {
-        const contents = await getDocUpdatedContents(item.id, updatedDate, sortOrder, ignoreList);
-        item.content = contents;
-        item.updated = nowStr;
-        item.friendlyTime = friendlyDate(nowStr, lang);
-      } catch (err) {
-        console.warn("[Timeline] refreshDocs failed for", rid, err);
+      if (idx >= 0) {
+        // 已在当前列表内
+        item = this.dataList[idx];
+      } else {
+        // 老文档：不在当前已加载列表内
+        if (sortOrder === "document") continue; // document 排序无法定位文档顺序，忽略插入
+        const block = await getDocById(rid);
+        if (!block) continue;
+        item = this.transformBlock(block);
+        try {
+          item.content = await getDocUpdatedContents(item.id, item.updated.slice(0, 8), sortOrder, ignoreList);
+        } catch (err) {
+          console.warn("[Timeline] refreshDocs content failed for", rid, err);
+          item.content = [];
+        }
+        idx = -1; // 标记为新插入
+      }
+
+      // 已在列表的文档重新拉取最新内容
+      if (idx >= 0) {
+        try {
+          item.content = await getDocUpdatedContents(item.id, item.updated.slice(0, 8), sortOrder, ignoreList);
+        } catch (err) {
+          console.warn("[Timeline] refreshDocs content failed for", rid, err);
+        }
+      }
+
+      // 更新时间相关字段
+      item.updated = nowStr;
+      item.friendlyTime = friendlyDate(nowStr, lang);
+      const { hours, minutes } = parseSiyuanDate(nowStr);
+      item.leftContent = `${hours}:${minutes}`;
+
+      const newEl = this.createItemElement(item, 0, false);
+
+      // document 排序：原地刷新，不动位置
+      if (idx >= 0 && sortOrder === "document") {
+        const oldEl = listEl.querySelector(`.timeline-item[data-root-id="${rid}"]`);
+        if (oldEl) oldEl.replaceWith(newEl);
         continue;
       }
 
-      if (!listEl) continue;
-      // 原地替换该卡片，其它卡片与其它 DOM 完全不动
-      const oldEl = listEl.querySelector(
-        `.timeline-item[data-root-id="${rid}"]`
-      ) as HTMLElement | null;
-      if (oldEl) {
-        const newEl = this.createItemElement(item, 0, false);
-        oldEl.replaceWith(newEl);
+      // updated 排序（或新插入的老文档）：置顶到「今天」组
+      if (idx >= 0) {
+        const oldEl = listEl.querySelector(`.timeline-item[data-root-id="${rid}"]`);
+        if (oldEl) oldEl.remove();
+        this.dataList.splice(idx, 1);
       }
+      item.leftTime = ""; // 由「今天」组头承载日期语义，卡片自身不重复显示
+      const todayGroup = this.ensureTodayGroup(listEl);
+      this.dataList.unshift(item);
+      todayGroup.after(newEl); // 插到今天组头之后（置顶）
+      this.cleanupEmptyGroups(listEl);
+    }
+  }
+
+  /** 生成思源日期格式 YYYYMMDDHHMMSS（本地时区，与思源 updated 字段一致） */
+  private formatNow(): string {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return (
+      `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+      `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+    );
+  }
+
+  /** 确保列表顶部存在「今天」日期组头，返回该组头元素 */
+  private ensureTodayGroup(listEl: HTMLElement): HTMLElement {
+    let g = listEl.querySelector(".timeline-date-group--today") as HTMLElement | null;
+    if (!g) {
+      g = document.createElement("div");
+      g.className = "timeline-date-group timeline-date-group--today";
+      const lang = this.getLang();
+      const label = lang === "zh_CN" ? "📍 今天" : "📍 Today";
+      g.innerHTML = `<span class="timeline-date-group__label">${label}</span><span class="timeline-date-group__line"></span>`;
+      listEl.prepend(g);
+    }
+    return g;
+  }
+
+  /** 移除因卡片移走而变空的日期组头 */
+  private cleanupEmptyGroups(listEl: HTMLElement): void {
+    const groups = Array.from(listEl.querySelectorAll(".timeline-date-group"));
+    for (const g of groups) {
+      let n = g.nextElementSibling;
+      let hasCard = false;
+      while (n && !n.classList.contains("timeline-date-group")) {
+        if (n.classList.contains("timeline-item")) { hasCard = true; break; }
+        n = n.nextElementSibling;
+      }
+      if (!hasCard) g.remove();
     }
   }
 

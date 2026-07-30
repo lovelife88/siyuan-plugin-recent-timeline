@@ -101,6 +101,16 @@ export async function getRecentDocs(
   return sql(stmt, [limit, offset]);
 }
 
+/** 按 root_id 查询单个文档（供老文档插入增强使用，返回 null 表示文档不存在） */
+export async function getDocById(rootId: string): Promise<BlockData | null> {
+  const rows = (await sql(
+    `SELECT id, updated, content, box, hpath, root_id FROM blocks WHERE id = ? AND type = 'd' LIMIT 1`,
+    [rootId]
+  )) as BlockData[];
+  if (!rows || rows.length === 0) return null;
+  return rows[0];
+}
+
 /** 使用思源内置 Lute 引擎将 Markdown 渲染为 HTML */
 function renderMarkdown(md: string): string {
   try {
