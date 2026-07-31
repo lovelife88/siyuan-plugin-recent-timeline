@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.3] - 2026-07-31
+
+### Fixed
+
+- 修复编辑非「今天」文档后时间线卡片内容不更新（表现为「刷新了但内容没变 / 像没刷新」）：局部刷新 `refreshDocs` 中已列表文档改用今天日期区间（`nowStr`）查询最新编辑内容，之前误用文档全量加载时的旧 `updated` 日期导致在旧日期区间查不到新编辑内容。
+- 移除调试期诊断日志（`ws-main` 事件与 flush 的 `console.log`）。
+
+### Added
+
+- 局部刷新增强：编辑文档后该卡片置顶到「今天」组；不在当前已加载列表内的老文档作为新卡片插入顶部。卡片间排序由文档 `updated` 决定，卡片内更新内容排序仍由 `contentSortOrder` 决定。
+- 自动刷新触发加固：`transactions` 事件改为收集涉及的块 id，flush 时批量查 `blocks` 表解析为所属文档 `root_id`，确保纯文本编辑也能稳定触发局部刷新。
+
+## [1.4.2] - 2026-07-29
+
+### Changed
+
+- 文档更新后仅局部刷新对应卡片（不再重建整个时间线列表），减少闪烁与性能开销；由 `ws-main` 的 `savedoc` / `transactions` 事件经防抖后触发。
+
 ## [1.4.0] - 2026-07-28
 
 ### Added
@@ -82,6 +100,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Migrated from uni-app widget version to SiYuan plugin
 
+[1.4.3]: https://github.com/lovelife88/siyuan-plugin-recent-timeline/releases/tag/v1.4.3
+[1.4.2]: https://github.com/lovelife88/siyuan-plugin-recent-timeline/releases/tag/v1.4.2
+[1.4.0]: https://github.com/lovelife88/siyuan-plugin-recent-timeline/releases/tag/v1.4.0
 [1.2.0]: https://github.com/lovelife88/siyuan-plugin-recent-timeline/releases/tag/v1.2.0
 [1.1.1]: https://github.com/lovelife88/siyuan-plugin-recent-timeline/releases/tag/v1.1.1
 [1.1.0]: https://github.com/lovelife88/siyuan-plugin-recent-timeline/releases/tag/v1.1.0

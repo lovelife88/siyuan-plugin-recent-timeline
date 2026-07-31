@@ -1118,7 +1118,7 @@ export class TimelinePanel {
       // 已在列表的文档重新拉取最新内容
       if (idx >= 0) {
         try {
-          item.content = await getDocUpdatedContents(item.id, item.updated.slice(0, 8), sortOrder, ignoreList);
+          item.content = await getDocUpdatedContents(item.id, nowStr.slice(0, 8), sortOrder, ignoreList);
         } catch (err) {
           console.warn("[Timeline] refreshDocs content failed for", rid, err);
         }

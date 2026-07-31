@@ -17,7 +17,6 @@ export default class RecentTimelinePlugin extends Plugin {
   private onWsMain = (event: any) => {
     const cmd = event?.detail?.cmd;
     if (!cmd) return;
-    console.log("[Timeline][ws-main] cmd =", cmd, "| refreshDelay(s) =", this.settings.refreshDelay);
 
     const delayMs = this.settings.refreshDelay * 1000;
     if (delayMs <= 0) return; // 设为 0 时关闭自动刷新
@@ -49,7 +48,6 @@ export default class RecentTimelinePlugin extends Plugin {
         }
       }
       const ids = Array.from(rootIds);
-      console.log("[Timeline] flush -> blockIds:", blockIds.length, "resolved rootIds:", ids.length, ids.slice(0, 8));
       if (ids.length > 0 && this.timelinePanel) {
         // 局部刷新对应文档卡片，而非重建整个列表
         this.timelinePanel.refreshDocs(ids);
